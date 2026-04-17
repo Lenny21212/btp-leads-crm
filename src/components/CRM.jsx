@@ -29,20 +29,29 @@ function normalizePhone(tel) {
   return /^0[1-9]\d{8}$/.test(n) ? n : null
 }
 
-async function runApifyActor(apiKey, actorId, input) {
-  const run = await fetch(`${APIFY_BASE}/acts/${actorId}/runs?token=${apiKey}`, {
+const PROXY = '/api/apify'
+
+async function apifyCall(body) {
+  const res = await fetch(PROXY, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input),
-  }).then(r => r.json())
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error(`Proxy HTTP ${res.status}`)
+  return res.json()
+}
+
+async function runApifyActor(apiKey, actorId, input) {
+  const run = await apifyCall({ action: 'start', apiKey, actorId, input })
   if (!run?.data?.id) throw new Error(run?.error?.message || 'Lancement acteur échoué')
   const runId = run.data.id
   for (let i = 0; i < 36; i++) {
     await new Promise(r => setTimeout(r, 5000))
-    const status = await fetch(`${APIFY_BASE}/actor-runs/${runId}?token=${apiKey}`).then(r => r.json())
+    const status = await apifyCall({ action: 'status', apiKey, runId })
     const s = status?.data?.status
     if (s === 'SUCCEEDED') {
-      return fetch(`${APIFY_BASE}/datasets/${status.data.defaultDatasetId}/items?token=${apiKey}&format=json&clean=true`).then(r => r.json())
+      const datasetId = status.data.defaultDatasetId
+      return apifyCall({ action: 'results', apiKey, datasetId })
     }
     if (s === 'FAILED' || s === 'ABORTED') throw new Error(`Acteur ${s}`)
   }
@@ -94,22 +103,28 @@ async function checkBloctelProxy(bloctelKey, phones, proxyUrl) {
   return new Set(data?.inscrits || [])
 }
 
+// ─── Helpers localStorage ────────────────────────────────────────────────────
+const LS = {
+  get: (k, fallback) => { try { const v = localStorage.getItem(k); return v !== null ? JSON.parse(v) : fallback } catch { return fallback } },
+  set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)) } catch {} },
+}
+
 // ─── Main CRM ────────────────────────────────────────────────────────────────
 export default function CRM({ user, onSignOut }) {
-  // Scrape settings
-  const [apiKey, setApiKey] = useState('')
-  const [metier, setMetier] = useState('Électricien')
-  const [ville, setVille] = useState('')
-  const [maxItems, setMaxItems] = useState(50)
-  const [sources, setSources] = useState({ pj: true, gmaps: false })
-  const [actorPJ, setActorPJ] = useState('nwua9Gu5YkAVuf7GW')
-  const [actorGM, setActorGM] = useState('compass/crawler-google-places')
+  // Scrape settings — persistées dans localStorage
+  const [apiKey, setApiKey] = useState(() => LS.get('btp_apify_key', ''))
+  const [metier, setMetier] = useState(() => LS.get('btp_metier', 'Électricien'))
+  const [ville, setVille] = useState(() => LS.get('btp_ville', ''))
+  const [maxItems, setMaxItems] = useState(() => LS.get('btp_max_items', 50))
+  const [sources, setSources] = useState(() => LS.get('btp_sources', { pj: true, gmaps: false }))
+  const [actorPJ, setActorPJ] = useState(() => LS.get('btp_actor_pj', 'ahmed_hrid/pagejaunes-leads-scraper'))
+  const [actorGM, setActorGM] = useState(() => LS.get('btp_actor_gm', 'compass/crawler-google-places'))
   const [showSettings, setShowSettings] = useState(false)
 
-  // Bloctel
-  const [bloctelKey, setBloctelKey] = useState('')
-  const [bloctelProxy, setBloctelProxy] = useState('')
-  const [autoCheckBloctel, setAutoCheckBloctel] = useState(true)
+  // Bloctel — persisté dans localStorage
+  const [bloctelKey, setBloctelKey] = useState(() => LS.get('btp_bloctel_key', ''))
+  const [bloctelProxy, setBloctelProxy] = useState(() => LS.get('btp_bloctel_proxy', ''))
+  const [autoCheckBloctel, setAutoCheckBloctel] = useState(() => LS.get('btp_auto_bloctel', true))
   const [checkingBloctel, setCheckingBloctel] = useState(false)
   const [bloctelLog, setBloctelLog] = useState('')
 
@@ -125,6 +140,30 @@ export default function CRM({ user, onSignOut }) {
   const [callingLead, setCallingLead] = useState(null)
   const [showModal, setShowModal] = useState(false)
   const [modalNote, setModalNote] = useState('')
+
+  // ── Sauvegarde auto des clés dans localStorage ──
+  useEffect(() => { LS.set('btp_apify_key', apiKey) }, [apiKey])
+  useEffect(() => { LS.set('btp_bloctel_key', bloctelKey) }, [bloctelKey])
+  useEffect(() => { LS.set('btp_bloctel_proxy', bloctelProxy) }, [bloctelProxy])
+  useEffect(() => { LS.set('btp_metier', metier) }, [metier])
+  useEffect(() => { LS.set('btp_ville', ville) }, [ville])
+  useEffect(() => { LS.set('btp_max_items', maxItems) }, [maxItems])
+  useEffect(() => { LS.set('btp_sources', sources) }, [sources])
+  useEffect(() => { LS.set('btp_actor_pj', actorPJ) }, [actorPJ])
+  useEffect(() => { LS.set('btp_actor_gm', actorGM) }, [actorGM])
+  useEffect(() => { LS.set('btp_auto_bloctel', autoCheckBloctel) }, [autoCheckBloctel])
+
+  // ── Sauvegarde auto des clés dans localStorage ──
+  useEffect(() => { LS.set('btp_apify_key', apiKey) }, [apiKey])
+  useEffect(() => { LS.set('btp_bloctel_key', bloctelKey) }, [bloctelKey])
+  useEffect(() => { LS.set('btp_bloctel_proxy', bloctelProxy) }, [bloctelProxy])
+  useEffect(() => { LS.set('btp_metier', metier) }, [metier])
+  useEffect(() => { LS.set('btp_ville', ville) }, [ville])
+  useEffect(() => { LS.set('btp_max_items', maxItems) }, [maxItems])
+  useEffect(() => { LS.set('btp_sources', sources) }, [sources])
+  useEffect(() => { LS.set('btp_actor_pj', actorPJ) }, [actorPJ])
+  useEffect(() => { LS.set('btp_actor_gm', actorGM) }, [actorGM])
+  useEffect(() => { LS.set('btp_auto_bloctel', autoCheckBloctel) }, [autoCheckBloctel])
 
   // ── Fetch leads from Supabase ──
   const fetchLeads = useCallback(async () => {
