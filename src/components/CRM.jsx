@@ -50,15 +50,19 @@ async function runApifyActor(apiKey, actorId, input) {
 }
 
 function normalizePJ(item, metier) {
+  // Compatible ahmed_hrid/pagejaunes-leads-scraper + autres acteurs PJ
   return {
     source: 'Pages Jaunes', metier,
-    nom: item.name || item.title || '—',
-    dirigeant: item.ownerName || item.contactName || null,
-    telephone: item.phone || item.phoneNumber || null,
-    siret: item.siret || null,
-    ville: item.city || item.address?.city || '—',
-    adresse: item.address?.street || item.fullAddress || null,
-    site_web: item.website || null,
+    nom: item.name || item.companyName || item.title || '—',
+    dirigeant: item.ownerName || item.contactName || item.managerName || null,
+    telephone: item.phone || item.phoneNumber || item.telephone ||
+               (Array.isArray(item.phones) ? item.phones[0] : null) || null,
+    siret: item.siret || item.siren || null,
+    ville: item.city || item.locality || item.address?.city ||
+           (typeof item.address === 'string' ? item.address : null) || '—',
+    adresse: item.address?.street || item.streetAddress || item.fullAddress ||
+             (typeof item.address === 'string' ? item.address : null) || null,
+    site_web: item.website || item.url || null,
     status: 'new', note: '',
     scrape_date: new Date().toISOString(),
   }
@@ -213,7 +217,7 @@ export default function CRM({ user, onSignOut }) {
     try {
       if (sources.pj) {
         setScrapeLog('🔄 Pages Jaunes...')
-        const items = await runApifyActor(apiKey, actorPJ, { query: metier, location: ville, maxItems })
+        const items = await runApifyActor(apiKey, actorPJ, { searchQuery: metier, location: ville, maxResults: maxItems, query: metier, maxItems })
         const norm = (items || []).map(i => normalizePJ(i, metier)).filter(l => l.telephone)
         newLeads = [...newLeads, ...norm]
         setScrapeLog(`✅ Pages Jaunes: ${norm.length} leads`)
