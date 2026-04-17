@@ -19,10 +19,13 @@ export default async function handler(req, res) {
 
   const { action, apiKey, actorId, input, runId, datasetId } = req.body
 
+  // Apify utilise ~ comme separateur dans les URLs d'API (pas /)
+  const safeActorId = (actorId || '').replace('/', '~')
+
   try {
     if (action === 'start') {
       // Lance un acteur
-      const response = await fetch(`${APIFY_BASE}/acts/${actorId}/runs?token=${apiKey}`, {
+      const response = await fetch(`${APIFY_BASE}/acts/${safeActorId}/runs?token=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
