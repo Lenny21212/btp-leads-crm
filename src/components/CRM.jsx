@@ -6,8 +6,8 @@ const APIFY_BASE = 'https://api.apify.com/v2'
 
 const METIERS = [
   'Électricien', 'Plombier', 'Chauffagiste', 'Menuisier',
-  'Maçon', 'Carreleur', 'Peintre en bâtiment', 'Couvreur',
-  'Serrurier', 'Climatiseur / Froid',
+  'Entreprise maçonnerie', 'Carreleur', 'Peintre en bâtiment', 'Couvreur',
+  'Serrurier', 'Climatisation',
 ]
 
 const STATUSES = {
